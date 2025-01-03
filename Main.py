@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -5,6 +6,8 @@ import subprocess
 import os
 from pathlib import Path
 import shlex
+import xml.etree.ElementTree as ET
+from deeprhythm import DeepRhythmPredictor
 
 class TranscriptionApp:
     def __init__(self, root):
@@ -97,18 +100,45 @@ class TranscriptionApp:
         """Uruchamia run_transcription w osobnym wątku."""
         self.toggle_buttons("disabled")
         threading.Thread(target=self.run_transcription, daemon=True).start()
-    
+
+    def predict_bpm(self, file):
+        model = DeepRhythmPredictor()
+        tempo, _ = model.predict(file, include_confidence=True)
+        return tempo
+
+    def add_tempo_to_musicxml(self, musicxml_path, tempo):
+        tree = ET.parse(musicxml_path)
+        root = tree.getroot()
+
+        # Znajdź pierwszy `<measure>` wewnątrz `<part>`
+        measure = root.find(".//part/measure")
+        if measure is None:
+            raise ValueError("Invalid MusicXML: No <measure> element found.")
+
+        # Tworzenie elementu <direction> dla tempa
+        direction = ET.Element("direction", placement="above")
+        direction_type = ET.SubElement(direction, "direction-type")
+        metronome = ET.SubElement(direction_type, "metronome")
+        
+        beat_unit = ET.SubElement(metronome, "beat-unit")
+        beat_unit.text = "quarter"  # Domyślnie ćwierćnuty
+        per_minute = ET.SubElement(metronome, "per-minute")
+        per_minute.text = str(tempo)  # Tempo w BPM
+
+        # Dodanie elementu <direction> na początku `<measure>`
+        measure.insert(0, direction)
+
+        # Zapisz zmodyfikowany plik MusicXML
+        tree.write(musicxml_path)
+
     def run_transcription(self):
         if not self.input_path.get() or not self.output_path.get():
             messagebox.showerror("Error", "Please select input file and output location")
             return
         
         try:
-            # Ścieżka do pliku MIDI (plik tymczasowy)
             midi_path = self.temp_dir / "temp.mid"
-            # Ścieżka do pliku MusicXML
             output_xml = Path(self.output_path.get()) / f"{Path(self.input_path.get()).stem}.musicxml"
-            # Ścieżka do pliku PDF
             output_pdf = Path(self.output_path.get()) / f"{Path(self.input_path.get()).stem}.pdf"
 
             # Krok 1: HPPNet (Audio -> MIDI)
@@ -130,7 +160,16 @@ class TranscriptionApp:
                 raise Exception(f"Audio to MIDI conversion failed: {process.stderr}")
             self.log(process.stdout)
 
-            # Krok 2: MIDI2Score (MIDI -> MusicXML)
+            # Krok 2: Wykrywanie tempa
+            self.status_var.set("Detecting tempo...")
+            self.progress['value'] = 50
+            self.root.update()
+            
+            self.log(f"Detecting tempo from {self.input_path.get()}")
+            tempo = self.predict_bpm(self.input_path.get())
+            self.log(f"Detected tempo: {tempo} BPM")
+            
+            # Krok 3: MIDI2Score (MIDI -> MusicXML)
             self.status_var.set("Converting MIDI to MusicXML...")
             self.progress['value'] = 75
             self.root.update()
@@ -149,7 +188,12 @@ class TranscriptionApp:
                 raise Exception(f"MIDI to MusicXML conversion failed: {process.stderr}")
             self.log(process.stdout)
 
-            # Krok 3: MusicXML -> PDF
+            # Krok 4: Dodanie tempa do MusicXML
+            self.status_var.set("Adding tempo to MusicXML...")
+            self.log(f"Adding detected tempo ({tempo} BPM) to {output_xml}")
+            self.add_tempo_to_musicxml(output_xml, tempo)
+
+            # Krok 5: MusicXML -> PDF
             self.status_var.set("Generating sheet music PDF...")
             self.progress['value'] = 100
             self.root.update()
@@ -157,8 +201,8 @@ class TranscriptionApp:
             self.log(f"Running MuseScore to generate PDF from {output_xml}")
             command = [
                 self.musescore_path,
-                "-o", str(output_pdf),  # Ścieżka wyjściowego pliku PDF
-                str(output_xml)         # Ścieżka wejściowego pliku MusicXML
+                "-o", str(output_pdf),
+                str(output_xml)
             ]
             process = subprocess.run(command, capture_output=True, text=True)
             
@@ -174,11 +218,11 @@ class TranscriptionApp:
             messagebox.showerror("Error", str(e))
             self.status_var.set("Error occurred during transcription")
         finally:
-            # Cleanup temporary files
             if midi_path.exists():
                 midi_path.unlink()
             self.progress['value'] = 0
             self.toggle_buttons("normal")
+
 
 
 def main():
