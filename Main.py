@@ -1,11 +1,8 @@
-from concurrent.futures import ThreadPoolExecutor
 import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import subprocess
-import os
 from pathlib import Path
-import shlex
 import xml.etree.ElementTree as ET
 from deeprhythm import DeepRhythmPredictor
 
@@ -73,7 +70,24 @@ class TranscriptionApp:
         # Przycisk do uruchomienia transkrypcji
         self.transcription_btn = ttk.Button(self.root, text="Start Transcription", command=self.start_transcription_thread)
         self.transcription_btn.grid(row=4, column=0, pady=10)
+        
+        # Frame na wybór ścieżki do MuseScore
+        musescore_frame = ttk.LabelFrame(self.root, text="MuseScore Path", padding="10")
+        musescore_frame.grid(row=5, column=0, padx=10, pady=5, sticky="ew")
+
+        self.musescore_path_var = tk.StringVar(value=self.musescore_path)
+        ttk.Entry(musescore_frame, textvariable=self.musescore_path_var, width=50).grid(row=0, column=0, padx=5)
+        self.musescore_browse_btn = ttk.Button(musescore_frame, text="Browse MuseScore", command=self.browse_musescore)
+        self.musescore_browse_btn.grid(row=0, column=1, padx=5)
     
+    def browse_musescore(self):
+        filepath = filedialog.askopenfilename(
+            filetypes=[("MuseScore Executable", "*.exe")],
+            title="Select MuseScore Executable"
+        )
+        if filepath:
+            self.musescore_path_var.set(filepath)
+
     def log(self, message):
         self.log_text.insert(tk.END, message + "\n")
         self.log_text.see(tk.END)
@@ -85,12 +99,12 @@ class TranscriptionApp:
         )
         if filename:
             self.input_path.set(filename)
-    
+
     def toggle_buttons(self, state):
         self.input_browse_btn.config(state=state)
         self.output_browse_btn.config(state=state)
         self.transcription_btn.config(state=state)
-    
+        
     def browse_output(self):
         directory = filedialog.askdirectory()
         if directory:
@@ -153,7 +167,7 @@ class TranscriptionApp:
                 "--flac_paths", self.input_path.get(),
                 "--model_file", self.hppnet_model,
                 "--save-path", str(midi_path)
-            ], capture_output=True, text=True)
+            ], capture_output=True, text=True, check=True)
             
             if process.returncode != 0:
                 self.log(f"Error output: {process.stderr}")
@@ -181,7 +195,7 @@ class TranscriptionApp:
                 "--midi_path", str(midi_path),
                 "--model_checkpoint", self.midi2score_model,
                 "--output_xml_path", str(output_xml)
-            ], capture_output=True, text=True)
+            ], capture_output=True, text=True, check=True)
             
             if process.returncode != 0:
                 self.log(f"Error output: {process.stderr}")
@@ -204,7 +218,7 @@ class TranscriptionApp:
                 "-o", str(output_pdf),
                 str(output_xml)
             ]
-            process = subprocess.run(command, capture_output=True, text=True)
+            process = subprocess.run(command, capture_output=True, text=True, check=True)
             
             if process.returncode != 0:
                 self.log(f"Error output: {process.stderr}")
