@@ -11,16 +11,12 @@ class TranscriptionApp:
         self.root = root
         self.root.title("Audio to Score Transcription")
         
-        # Ścieżki do środowisk i skryptów
-        self.hppnet_python = r"C:\Users\krzyw\Source\Repos\HPPNet\hppvenv\Scripts\python.exe"
-        self.midi2score_python = r"C:\Users\krzyw\Source\Repos\MIDI2ScoreTransformer\midi2scoreEnv\Scripts\python.exe"
-        
-        self.hppnet_script = r"C:\Users\krzyw\Source\Repos\HPPNet\transcribe.py"
-        self.midi2score_script = r"C:\Users\krzyw\Source\Repos\MIDI2ScoreTransformer\midi2scoretransformer\evaluation\interference.py"
+        self.hppnet_exe = r"Audio2MIDI\transcribe.exe"
+        self.midi2score_exe = r"MIDI2MusicXML/interference.exe"
         
         # Ścieżki do modeli
-        self.hppnet_model = r"C:\Users\krzyw\Desktop\inz\Hppnet_wytrenowane\model_base-81600.pt"
-        self.midi2score_model = r"C:\Users\krzyw\Desktop\inz\Testy_midi2score\MIDI2ScoreTF.ckpt"
+        self.hppnet_model = r"Audio2MIDI\model_base-81600.pt"
+        self.midi2score_model = r"MIDI2MusicXML\MIDI2ScoreTF.ckpt"
         
         #Ścieżka do MuseScore
         self.musescore_path = r"C:\Program Files\MuseScore 4\bin\MuseScore4.exe"
@@ -162,8 +158,7 @@ class TranscriptionApp:
             
             self.log(f"Running HPPNet on {self.input_path.get()}")
             process = subprocess.run([
-                self.hppnet_python,
-                self.hppnet_script,
+                self.hppnet_exe,
                 "--flac_paths", self.input_path.get(),
                 "--model_file", self.hppnet_model,
                 "--save-path", str(midi_path)
@@ -172,7 +167,6 @@ class TranscriptionApp:
             if process.returncode != 0:
                 self.log(f"Error output: {process.stderr}")
                 raise Exception(f"Audio to MIDI conversion failed: {process.stderr}")
-            self.log(process.stdout)
 
             # Krok 2: Wykrywanie tempa
             self.status_var.set("Detecting tempo...")
@@ -190,8 +184,7 @@ class TranscriptionApp:
             
             self.log(f"Running MIDI2Score on {midi_path}")
             process = subprocess.run([
-                self.midi2score_python,
-                self.midi2score_script,
+                self.midi2score_exe,
                 "--midi_path", str(midi_path),
                 "--model_checkpoint", self.midi2score_model,
                 "--output_xml_path", str(output_xml)
@@ -222,11 +215,12 @@ class TranscriptionApp:
             
             if process.returncode != 0:
                 self.log(f"Error output: {process.stderr}")
-                raise Exception(f"MusicXML to PDF conversion failed: {process.stderr}")
+                self.log(f"Error output: {process.stderr}")
+                messagebox.showwarning("Warning", f"MuseScore not found or failed to generate PDF. However, MusicXML file has been saved to:\n{output_xml}")
             self.log(process.stdout)
 
             self.status_var.set("Transcription completed successfully!")
-            messagebox.showinfo("Success", f"Transcription and PDF saved to:\n{output_xml}\n{output_pdf}")
+            messagebox.showinfo("Success", f"MusicXML and PDF saved to:\n{output_xml}\n{output_pdf}")
             
         except Exception as e:
             messagebox.showerror("Error", str(e))
@@ -236,8 +230,6 @@ class TranscriptionApp:
                 midi_path.unlink()
             self.progress['value'] = 0
             self.toggle_buttons("normal")
-
-
 
 def main():
     root = tk.Tk()
