@@ -15,7 +15,7 @@ class TranscriptionApp:
         self.midi2score_exe = r"MIDI2MusicXML/interference.exe"
         
         # Ścieżki do modeli
-        self.hppnet_model = r"Audio2MIDI\model_base-81600.pt"
+        self.hppnet_model = r"Audio2MIDI\model_audio2midi.pt"
         self.midi2score_model = r"MIDI2MusicXML\MIDI2ScoreTF.ckpt"
         
         #Ścieżka do MuseScore
