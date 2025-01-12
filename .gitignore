@@ -1,2 +1,4 @@
 venv/
-venvmin/
+Audio2MIDI/
+MIDI2MusicXML/
+__pycache__/
